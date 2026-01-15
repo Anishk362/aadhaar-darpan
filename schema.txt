@@ -1,17 +1,76 @@
-=== PROJECT SCHEMA ===
+﻿PROJECT: AADHAAR DARPAN
+STATUS: REAL DATA ARCHITECTURE
+VERSION: 2.0
 
-1. CSV FORMAT (Member 1 Output -> Member 2 & 3 Input)
-   - center_id       (Integer)
-   - timestamp       (Datetime: YYYY-MM-DD HH:MM:SS)
-   - duration_sec    (Integer)
-   - gender          (String: 'M' or 'F')
-   - retry_count     (Integer)
+==================================================
+1. INPUT DATA (RAW CSV HEADERS)
+Members 1 & 2 must look for these columns in the Government CSVs.
+Note: Actual CSV headers may vary slightly (e.g., "District Name" vs "District"). Member 1 must normalize them.
 
-2. API FORMAT (Member 4 Output -> Member 5 Input)
-   {
-      "status": "Critical",      // Options: Critical, Warning, Safe
-      "alerts": [                // List of strings
-          "Ghost Center Detected",
-          "High Gender Gap"
-      ]
-   }
+[Dataset A: Enrolment Data]
+- State
+- District
+- Pincode
+- Age_Group_0_5
+- Age_Group_5_18
+- Age_Group_18_Plus
+- Gender_Male
+- Gender_Female
+- Gender_Transgender
+
+[Dataset B: Demographic Updates]
+- State
+- District
+- Pincode
+- Mobile_Number_Updates  <-- CRITICAL FOR FRAUD DETECTION
+- Email_Id_Updates
+- Address_Updates
+
+[Dataset C: Biometric Updates]
+- State
+- District
+- Pincode
+- Biometric_Updates      <-- CRITICAL FOR FORECASTING
+
+==================================================
+2. PROCESSED DATA (THE JSON CONTRACT)
+Member 1 output -> Consumed by Member 2, 3, 4.
+File: processed_metrics.json
+
+[
+  {
+    "district_id": "Delhi_Central",
+    "state": "Delhi",
+    "total_population_estimate": 500000,
+    "metrics": {
+      "mobile_update_volume": 1200,      // High volume = Fraud Risk
+      "female_enrolment_pct": 0.42,      // Low % = Exclusion Risk
+      "biometric_traffic_trend": [500, 520, 600, 850] // For ML Forecasting
+    }
+  },
+  ...
+]
+
+==================================================
+3. API RESPONSE (BACKEND -> MOBILE)
+Member 4 output -> Consumed by Member 5 (Flutter).
+
+GET /api/audit?district=Mewat
+{
+  "status": "success",
+  "district": "Mewat",
+  "cards": {
+    "security": {
+      "status": "CRITICAL",  // Options: SAFE, WARNING, CRITICAL
+      "risk_factor": "High Mobile Update Anomaly (Z-Score: 4.5)"
+    },
+    "inclusivity": {
+      "status": "WARNING",
+      "metric": "38% Female Enrolment (Natl Avg: 48%)"
+    },
+    "efficiency": {
+      "status": "SAFE",
+      "forecast": "Normal Traffic Expected"
+    }
+  }
+}
