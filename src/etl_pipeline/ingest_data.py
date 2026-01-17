@@ -3,7 +3,7 @@ import glob
 import json
 import os
 
-BASE_PATH = "../../data/raw_csvs"
+BASE_PATH = "data/raw_csvs"
 
 def load_chunked_data(folder_name):
     path = os.path.join(BASE_PATH, folder_name, "*.csv")
