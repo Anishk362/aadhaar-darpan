@@ -23,6 +23,22 @@ def main():
     df_bio = load_chunked_data("biometric")
     df_demo = load_chunked_data("demographic")
 
+    # ===============================
+    # SAFETY CHECKS (VERY IMPORTANT)
+    # ===============================
+
+    if df_enrol.empty:
+        print("No enrolment data found. Stopping ETL.")
+        return
+
+    if df_bio.empty:
+        print("No biometric data found. Stopping ETL.")
+        return
+
+    if df_demo.empty:
+        print("No demographic data found. Stopping ETL.")
+        return
+
     # -------------------------------
     # ENROLMENT → Total_Enrolment
     # -------------------------------
