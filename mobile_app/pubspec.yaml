@@ -34,6 +34,8 @@ dependencies:
   fl_chart: ^1.1.1
   google_fonts: ^6.1.0
   countries_world_map: ^1.3.0
+  flutter_staggered_animations: ^1.0.0
+  glass_kit: ^3.0.0 # For the frosted glass panels
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
