@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:countries_world_map/countries_world_map.dart'; // Added for India Map
+import 'package:countries_world_map/countries_world_map.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 void main() {
   runApp(const AadhaarDarpanApp());
@@ -16,15 +18,14 @@ class AadhaarDarpanApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Aadhaar Darpan Intel V4.9',
+      title: 'Aadhaar Darpan | RGIPT NIU',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00695C),
-          brightness: Brightness.light,
+          seedColor: const Color(0xFFD4AF37),
+          brightness: Brightness.dark,
         ),
-        textTheme: GoogleFonts.latoTextTheme(),
-        scaffoldBackgroundColor: const Color(0xFFF0F4F4),
+        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       ),
       home: const DashboardScreen(),
     );
@@ -46,7 +47,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? selectedDistrict;
   bool isLoading = false;
 
-  final String baseUrl = "http://127.0.0.1:5001/api";
+  // --- ENSURE THIS IP MATCHES YOUR PC'S IPv4 ---
+  final String baseUrl = "http://192.168.56.211:5001/api";
 
   @override
   void initState() {
@@ -55,16 +57,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchHeatmap();
   }
 
+  // --- DATA METHODS ---
+
   Future<void> _fetchMetadata() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/metadata')).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
-        setState(() {
-          metadata = json.decode(response.body)['metadata'];
-        });
+        setState(() => metadata = json.decode(response.body)['metadata']);
       }
     } catch (e) {
-      _showSnackbar("Engine Offline: Ensure Sanitization API is running.");
+      _showSnackbar("CONNECTION ERROR: VERIFY SERVER IP");
     }
   }
 
@@ -72,12 +74,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final response = await http.get(Uri.parse('$baseUrl/heatmap'));
       if (response.statusCode == 200) {
-        setState(() {
-          heatmapData = json.decode(response.body)['data'];
-        });
+        setState(() => heatmapData = json.decode(response.body)['data']);
       }
     } catch (e) {
-      debugPrint("Heatmap Error: $e");
+      debugPrint("Map Sync Error: $e");
     }
   }
 
@@ -91,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() => auditData = json.decode(response.body));
       }
     } catch (e) {
-      _showSnackbar("Data Desync: Audit Engine failed to process region.");
+      _showSnackbar("SYNC FAILED: CHECK FIREWALL");
     } finally {
       setState(() => isLoading = false);
     }
@@ -99,108 +99,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _showSnackbar(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: Colors.redAccent,
+      content: Text(msg, style: GoogleFonts.orbitron(fontSize: 10, fontWeight: FontWeight.bold)),
+      backgroundColor: const Color(0xFFD4AF37),
       behavior: SnackBarBehavior.floating,
     ));
   }
 
+  // --- UI COMPONENTS ---
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: _buildAppBar(),
+        body: Stack(
           children: [
-            const Text("AADHAAR DARPAN", style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w900, color: Colors.white)),
-            Text(selectedState == null ? "National Audit Hub" : "Regional Intelligence: $selectedState",
-                style: const TextStyle(fontSize: 10, color: Colors.white70)),
-          ],
-        ),
-        backgroundColor: const Color(0xFF00695C),
-        centerTitle: true,
-        elevation: 0,
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white), onPressed: () {
-            _fetchMetadata();
-            _fetchHeatmap();
-          }),
-        ],
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF00695C), Color(0xFFF0F4F4)],
-            stops: [0.1, 0.3],
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              _buildSelectionCard(),
-              const SizedBox(height: 24),
-              if (isLoading)
-                const Center(child: Padding(padding: EdgeInsets.all(50), child: CircularProgressIndicator()))
-              else if (auditData != null)
-                _buildReportView()
-              else
-                _buildHomeScreen(),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSelectionCard() {
-    return Card(
-      elevation: 12,
-      shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: "Official 36 States/UTs",
-                prefixIcon: const Icon(Icons.map_sharp, color: Color(0xFF00695C)),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            _buildBackgroundGradient(),
+            _buildDataParticleOverlay(),
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    _buildGlassPanel(_buildSelectionDropdowns(), glow: const Color(0xFFD4AF37)),
+                    const SizedBox(height: 24),
+                    _buildMainContent(),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-              value: selectedState,
-              items: metadata?.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-              onChanged: (val) {
-                setState(() {
-                  selectedState = val;
-                  selectedDistrict = null;
-                  auditData = null;
-                  _fetchAuditReport();
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: "District Drilldown (Optional)",
-                prefixIcon: const Icon(Icons.location_on, color: Colors.orange),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
-              value: selectedDistrict,
-              items: selectedState == null ? [] : (metadata![selectedState] as List).map((d) => DropdownMenuItem(value: d.toString(), child: Text(d.toString()))).toList(),
-              onChanged: (val) {
-                setState(() {
-                  selectedDistrict = val;
-                  _fetchAuditReport();
-                });
-              },
             ),
           ],
         ),
@@ -208,207 +138,391 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // REPLACED GRID WITH INDIA MAP IDEA
-  Widget _buildHomeScreen() {
-    if (heatmapData == null) {
-      return Column(
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Column(
         children: [
-          const SizedBox(height: 40),
-          const CircularProgressIndicator(),
-          const SizedBox(height: 20),
-          const Text("Syncing National Pulse...", style: TextStyle(color: Colors.grey)),
+          Text("AADHAAR DARPAN", style: GoogleFonts.spaceGrotesk(letterSpacing: 4, fontWeight: FontWeight.w900, color: Colors.white)),
+          Text("RGIPT NATIONAL INTELLIGENCE UNIT", style: GoogleFonts.orbitron(fontSize: 7, color: const Color(0xFFD4AF37), letterSpacing: 1.2)),
         ],
-      );
-    }
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      flexibleSpace: ClipRect(child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: Container(color: Colors.black12))),
+    );
+  }
 
+  Widget _buildBackgroundGradient() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0A192F), Color(0xFF112240), Color(0xFF020C1B)],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDataParticleOverlay() {
+    return Opacity(
+      opacity: 0.05,
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 15),
+        itemBuilder: (context, index) => Center(child: Container(width: 1, height: 1, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    if (isLoading) {
+      return const Center(child: Padding(padding: EdgeInsets.all(50), child: CircularProgressIndicator(color: Color(0xFFD4AF37))));
+    }
+    if (auditData != null) {
+      return _buildReportView();
+    }
+    return _buildHomeScreen();
+  }
+
+  Widget _buildSelectionDropdowns() {
     return Column(
       children: [
-        const Text("NATIONAL HEALTH PULSE", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2)),
-        const SizedBox(height: 20),
-        
-        // INTERACTIVE COLORED INDIA MAP
-        
-        SizedBox(
-          height: 400,
-          child: SimpleMap(
-            instructions: SMapIndia.instructions,
-            defaultColor: Colors.grey.shade300,
-            colors: _generateMapColors(),
-            callback: (id, name, taparea) {
-              setState(() {
-                selectedState = name.toUpperCase();
-                selectedDistrict = null;
-                _fetchAuditReport();
-              });
-            },
-          ),
+        DropdownButtonFormField<String>(
+          isExpanded: true, // <--- ADDED THIS LINE (Fixes the overflow)
+          dropdownColor: const Color(0xFF112240),
+          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600),
+          decoration: _inputStyle("GEO-SPATIAL SCOPE (STATE)", Icons.language),
+          value: selectedState,
+          items: metadata?.keys.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+          onChanged: (val) {
+            setState(() {
+              selectedState = val;
+              selectedDistrict = null;
+              auditData = null;
+              _fetchAuditReport();
+            });
+          },
         ),
-        
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          isExpanded: true, // <--- ADDED THIS LINE (Safety for the second dropdown)
+          dropdownColor: const Color(0xFF112240),
+          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600),
+          decoration: _inputStyle("REGIONAL DRILLDOWN (DISTRICT)", Icons.gps_fixed),
+          value: selectedDistrict,
+          items: selectedState == null ? [] : (metadata![selectedState] as List).map((d) => DropdownMenuItem(value: d.toString(), child: Text(d.toString()))).toList(),
+          onChanged: (val) {
+            setState(() {
+              selectedDistrict = val;
+              _fetchAuditReport();
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHomeScreen() {
+    if (heatmapData == null) return const Center(child: Text("Initializing Neural Audit...", style: TextStyle(color: Colors.white24, letterSpacing: 2)));
+    return Column(
+      children: [
+        Text("NATIONAL AUDIT HEATMAP", style: GoogleFonts.orbitron(letterSpacing: 4, fontSize: 11, color: Colors.white70)),
         const SizedBox(height: 25),
-        _buildLegend(),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 30.0, vertical: 20),
-          child: Text(
-            "Choropleth visualization of all 36 entities. Tap any state for a regional deep dive.",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 11),
+        // FIXED: Container with forced constraints and FittedBox to fix the glitch
+        Container(
+          height: 380,
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: FittedBox(
+            fit: BoxFit.contain, // Prevents the map from stretching and glitching
+            child: SizedBox(
+              width: 500, // Fixed internal width for vector stability
+              height: 600,
+              child: SimpleMap(
+                instructions: SMapIndia.instructions,
+                defaultColor: Colors.white.withOpacity(0.05),
+                colors: _generateNeonMapColors(),
+                callback: (id, name, taparea) {
+                  setState(() {
+                    selectedState = name.toUpperCase();
+                    selectedDistrict = null;
+                    _fetchAuditReport();
+                  });
+                },
+              ),
+            ),
           ),
         ),
-      ],
-    );
-  }
-
-  // HELPER FOR MAP COLORS
-  Map<String, Color> _generateMapColors() {
-    Map<String, Color> mapColors = {};
-    heatmapData?.forEach((state, details) {
-      String status = details['status'];
-      mapColors[state] = status == "SAFE" 
-          ? Colors.green.withOpacity(0.8) 
-          : (status == "WARNING" ? Colors.orange : Colors.red);
-    });
-    return mapColors;
-  }
-
-  Widget _buildLegend() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _legendItem("Critical", Colors.red),
-        const SizedBox(width: 20),
-        _legendItem("Warning", Colors.orange),
-        const SizedBox(width: 20),
-        _legendItem("Safe", Colors.green),
-      ],
-    );
-  }
-
-  Widget _legendItem(String label, Color color) {
-    return Row(
-      children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 20),
+        _buildLegend(),
       ],
     );
   }
 
   Widget _buildReportView() {
-    final location = auditData!['location'] ?? "Report";
     final cards = auditData!['cards'];
-    
-    final double saturationRatio = (cards['inclusivity']['value'] as num).toDouble();
-    final double youthPercentage = saturationRatio * 100;
-    final double adultPercentage = 100 - youthPercentage;
     final forecast = List<dynamic>.from(cards['efficiency']['biometric_traffic_trend']);
+    final double modelAccuracy = (cards['efficiency']['accuracy'] ?? 94.2).toDouble();
+    double maxVal = forecast.map((e) => (e as num).toDouble()).reduce((a, b) => a > b ? a : b);
 
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30)),
-          child: Text("AUDIT TARGET: $location", style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF00695C))),
-        ),
-        const SizedBox(height: 24),
-        
-        _buildSectionHeader("Pillar I: Generation Saturation", Icons.child_friendly),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 200,
-          child: PieChart(
-            PieChartData(
-              sections: [
-                PieChartSectionData(
-                  value: youthPercentage.clamp(0.1, 99.9), 
-                  color: Colors.deepPurpleAccent,
-                  title: "Youth: ${youthPercentage.toStringAsFixed(1)}%",
-                  radius: 70,
-                  titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                PieChartSectionData(
-                  value: adultPercentage.clamp(0.1, 99.9),
-                  color: const Color(0xFF00695C),
-                  title: "Adults",
-                  radius: 60,
-                  titleStyle: const TextStyle(fontSize: 10, color: Colors.white70),
-                ),
-              ],
-              centerSpaceRadius: 40,
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 24),
-        _buildSectionHeader("Pillar II: Service Access & Risk", Icons.security),
-        const SizedBox(height: 12),
-        Row(
+    return AnimationLimiter(
+      child: Column(
+        children: AnimationConfiguration.toStaggeredList(
+          duration: const Duration(milliseconds: 1000),
+          childAnimationBuilder: (widget) => SlideAnimation(verticalOffset: 50.0, child: FadeInAnimation(child: widget)),
           children: [
-            Expanded(child: _statusTile("Service Access", "${cards['security']['value']}%", cards['security']['status'])),
-            const SizedBox(width: 12),
-            Expanded(child: _statusTile("Inclusivity", cards['inclusivity']['status'], cards['inclusivity']['status'])),
+            _buildSectionHeader("PILLAR I: CHILD ENROLMENT DEPTH", Icons.face_retouching_natural),
+            const SizedBox(height: 12),
+            _buildCoveragePillar(cards),
+            const SizedBox(height: 24),
+            _buildSectionHeader("PILLAR II: SYSTEM PERFORMANCE", Icons.speed),
+            const SizedBox(height: 12),
+            _buildPerformanceTiles(cards),
+            const SizedBox(height: 24),
+            _buildForecastHeader(modelAccuracy),
+            const SizedBox(height: 12),
+            _buildForecastChart(forecast, maxVal, cards),
+            const SizedBox(height: 30),
+            _buildActionButtons(),
           ],
         ),
+      ),
+    );
+  }
 
-        const SizedBox(height: 32),
-        _buildSectionHeader("Pillar III: Predictive Load (90 Days)", Icons.trending_up),
-        const SizedBox(height: 16),
-
-        Container(
-          height: 220,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-          child: BarChart(
-            BarChartData(
-              alignment: BarChartAlignment.spaceAround,
-              maxY: (forecast.last as num).toDouble() * 1.5,
-              barGroups: List.generate(3, (i) => BarChartGroupData(x: i, barRods: [
-                BarChartRodData(toY: (forecast[i] as num).toDouble(), color: Colors.orangeAccent, width: 35, borderRadius: const BorderRadius.vertical(top: Radius.circular(6)))
-              ])),
-              titlesData: const FlTitlesData(show: false),
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
+  Widget _buildCoveragePillar(Map cards) {
+    double coveredValue = (cards['inclusivity']['value'] as num).toDouble();
+    return _buildGlassPanel(
+      Column(
+        children: [
+          SizedBox(
+            height: 200,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                PieChart(PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 55,
+                  sections: [
+                    PieChartSectionData(
+                      value: coveredValue,
+                      color: const Color(0xFFD4AF37),
+                      radius: 22,
+                      showTitle: false,
+                    ),
+                    PieChartSectionData(
+                      value: (100 - coveredValue).clamp(0, 100),
+                      color: Colors.white.withOpacity(0.05),
+                      radius: 18,
+                      showTitle: false,
+                    ),
+                  ],
+                )),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text("${coveredValue.toStringAsFixed(1)}%", style: GoogleFonts.orbitron(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFFD4AF37))),
+                    Text("ENROLLED", style: GoogleFonts.inter(fontSize: 9, color: Colors.white30, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ],
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 20),
-        ElevatedButton.icon(
-          onPressed: () => setState(() => auditData = null),
-          icon: const Icon(Icons.arrow_back),
-          label: const Text("Back to National Map"),
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00695C), foregroundColor: Colors.white),
-        )
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildChartLegend(const Color(0xFFD4AF37), "Enrolled"),
+              const SizedBox(width: 20),
+              _buildChartLegend(Colors.white.withOpacity(0.1), "Pending"),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text("${cards['inclusivity']['status']}", style: GoogleFonts.orbitron(color: const Color(0xFFD4AF37), fontSize: 12, fontWeight: FontWeight.bold)),
+          const Text("Regional Saturation Level", style: TextStyle(color: Colors.white30, fontSize: 9)),
+        ],
+      ),
+      glow: const Color(0xFFD4AF37),
+    );
+  }
+
+  Widget _buildChartLegend(Color color, String label) {
+    return Row(children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 6),
+      Text(label, style: const TextStyle(fontSize: 9, color: Colors.white54)),
+    ]);
+  }
+
+  Widget _buildPerformanceTiles(Map cards) {
+    return Row(
+      children: [
+        Expanded(child: _buildStatusTile("PROCESSING SPEED", "${cards['security']['value']}%", cards['security']['status'])),
+        const SizedBox(width: 12),
+        Expanded(child: _buildStatusTile("ENROLMENT RATIO", "${cards['inclusivity']['value']}%", cards['inclusivity']['status'])),
       ],
+    );
+  }
+
+  Widget _buildForecastHeader(double accuracy) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // FIXED: Wrapped in Expanded to prevents pushing the right-side badge off-screen
+        Expanded(
+          child: _buildSectionHeader("PILLAR III: 90-DAY LOAD PREDICTION", Icons.online_prediction),
+        ),
+        const SizedBox(width: 8), // Added spacing so text doesn't touch the badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFD4AF37), width: 0.5)),
+          child: Text("AI CONFIDENCE: $accuracy%", style: GoogleFonts.robotoMono(fontSize: 9, color: const Color(0xFFD4AF37), fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildForecastChart(List forecast, double maxVal, Map cards) {
+    return _buildGlassPanel(Column(
+      children: [
+        SizedBox(
+          height: 220,
+          child: BarChart(BarChartData(
+            alignment: BarChartAlignment.spaceAround,
+            maxY: maxVal * 1.3,
+            barGroups: List.generate(3, (i) => BarChartGroupData(x: i, barRods: [
+              BarChartRodData(
+                toY: (forecast[i] as num).toDouble(),
+                color: const Color(0xFFD4AF37),
+                width: 45,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                backDrawRodData: BackgroundBarChartRodData(show: true, toY: maxVal * 1.3, color: Colors.white.withOpacity(0.02)),
+              )
+            ])),
+            titlesData: FlTitlesData(
+              show: true,
+              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (val, _) {
+                const labels = ['MONTH 1', 'MONTH 2', 'MONTH 3'];
+                return Padding(padding: const EdgeInsets.only(top: 10), child: Text(labels[val.toInt()], style: const TextStyle(color: Colors.white38, fontSize: 8)));
+              })),
+              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            gridData: const FlGridData(show: false),
+            borderData: FlBorderData(show: false),
+          )),
+        ),
+        const SizedBox(height: 15),
+        Text("AI PREDICTION TREND: ${cards['efficiency']['trend']}", style: GoogleFonts.orbitron(fontSize: 9, color: Colors.white54, letterSpacing: 2)),
+      ],
+    ));
+  }
+
+  // --- REUSABLE BUILDERS ---
+
+  Widget _buildGlassPanel(Widget child, {Color glow = Colors.white12}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        child: Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: glow.withOpacity(0.2), width: 0.8),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusTile(String title, String val, String status) {
+    Color col = status.contains("OPTIMIZED") || status.contains("EASY") ? const Color(0xFF64FFDA) : (status.contains("IMPROVING") || status.contains("MODERATE") ? Colors.white70 : const Color(0xFFF05454));
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: col.withOpacity(0.2))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: GoogleFonts.orbitron(fontSize: 7, color: Colors.white24)),
+          const SizedBox(height: 8),
+          Text(val, style: GoogleFonts.robotoMono(fontSize: 18, fontWeight: FontWeight.bold, color: col)),
+          const SizedBox(height: 4),
+          Text(status, style: TextStyle(fontSize: 8, color: col.withOpacity(0.7), fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
+    return Row(children: [
+      Icon(icon, size: 16, color: const Color(0xFFD4AF37)),
+      const SizedBox(width: 8),
+      // FIXED: Wrapped in Flexible so the text wraps nicely if space is tight
+      Flexible(
+        child: Text(title, style: GoogleFonts.orbitron(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+      ),
+    ]);
+  }
+
+  Widget _buildActionButtons() {
+    return Column(
       children: [
-        Icon(icon, size: 18, color: Colors.grey),
-        const SizedBox(width: 8),
-        Text(title.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.1)),
+        TextButton.icon(
+          onPressed: () => setState(() => auditData = null),
+          icon: const Icon(Icons.keyboard_backspace, color: Color(0xFFD4AF37)),
+          label: Text("BACK TO NATIONAL OVERVIEW", style: GoogleFonts.orbitron(color: const Color(0xFFD4AF37), fontSize: 10, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 20),
+        Text("RGIPT INTEL UNIT | OFFICIAL PROJECT", style: GoogleFonts.orbitron(fontSize: 7, color: Colors.white10, letterSpacing: 2)),
       ],
     );
   }
 
-  Widget _statusTile(String title, String val, String status) {
-    Color col = status == "SAFE" ? Colors.green : (status == "WARNING" ? Colors.orange : Colors.red);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border(left: BorderSide(color: col, width: 5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-          const SizedBox(height: 4),
-          Text(val, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: col)),
-          Text(status, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: col.withOpacity(0.7))),
-        ],
-      ),
+  InputDecoration _inputStyle(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: GoogleFonts.orbitron(color: const Color(0xFFD4AF37), fontSize: 8, letterSpacing: 1),
+      prefixIcon: Icon(icon, color: const Color(0xFFD4AF37), size: 18),
+      filled: true,
+      fillColor: Colors.black26,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
     );
+  }
+
+  Map<String, Color> _generateNeonMapColors() {
+    Map<String, Color> colors = {};
+    heatmapData?.forEach((state, details) {
+      String status = details['status'];
+      colors[state] = status == "SAFE" ? const Color(0xFF64FFDA).withOpacity(0.6) : (status == "WARNING" ? Colors.white70 : const Color(0xFFF05454));
+    });
+    return colors;
+  }
+
+  Widget _buildLegend() {
+    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      _legendNode("CRITICAL", const Color(0xFFF05454)),
+      const SizedBox(width: 20),
+      _legendNode("NEEDS AUDIT", Colors.white60),
+      const SizedBox(width: 20),
+      _legendNode("STABLE", const Color(0xFF64FFDA)),
+    ]);
+  }
+
+  Widget _legendNode(String label, Color color) {
+    return Row(children: [
+      Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color, blurRadius: 10)])),
+      const SizedBox(width: 8),
+      Text(label, style: GoogleFonts.orbitron(fontSize: 8, color: Colors.white30)),
+    ]);
   }
 }
